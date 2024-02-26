@@ -1,11 +1,10 @@
 /*
- * IMD_Demo2_LCD_BlockingCode.cpp
+ * Lab 4
+ * IMD_Demo4_Sensor_Integration.cpp
  *
  * Created: 2/13/2022 2:47:06 PM
- * Author : Zach
+ * Author : Cameron Clarke, Logan York
  */ 
-
-// LAB 3
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
