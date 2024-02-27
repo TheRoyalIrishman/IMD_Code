@@ -2,7 +2,7 @@
  * Lab 4
  * IMD_Demo4_Sensor_Integration.cpp
  *
- * Created: 2/20/2024 10:00:00 AM
+ * Created: 2/13/2022 2:47:06 PM
  * Author : Cameron Clarke, Logan York
  */ 
 
@@ -41,8 +41,10 @@ uint8_t TWI_slave_address = 0;
 uint8_t TWI_char_index = 0;
 
 volatile uint16_t time = 0;
-
 volatile uint8_t isrHalfSecondCount = 0;
+volatile uint8_t ButtonPressed[4] = "OOM"; // Button will later be "ON " or "OFF"
+uint8_t ON[4] = "ON "; // used since I can't change ButtonPressed char by char...
+uint8_t OFF[4] = "OFF";
 
 volatile uint16_t adcValueOutputZero = 0; // MUX 0
 volatile uint16_t adcValueOutputOne = 0; // MUX 1
@@ -118,6 +120,18 @@ int main(void)
         //Toggle Pin
 		PIND = (1<<PIND0);
 		
+		//Read Button
+		if(PINB & 0b00001000){
+			ButtonPressed[0] = OFF[0];
+			ButtonPressed[1] = OFF[1];
+			ButtonPressed[2] = OFF[2];
+		}
+		else{
+			ButtonPressed[0] = ON[0];
+			ButtonPressed[1] = ON[1];
+			ButtonPressed[2] = ON[2];
+		}
+		
 		UpdateValues();
     }
 }
@@ -159,6 +173,10 @@ void UpdateValues()
 	SecondLineStr[5] = 0b00110000 | ((adcValueOutputOne / 100) % 10);
 	SecondLineStr[6] = 0b00110000 | ((adcValueOutputOne / 10) % 10);
 	SecondLineStr[7] = 0b00110000 | (adcValueOutputOne % 10);
+	
+	ThirdLineStr[8] = ButtonPressed[0];
+	ThirdLineStr[9] = ButtonPressed[1];
+	ThirdLineStr[10] = ButtonPressed[2];
 }
 
 
@@ -443,3 +461,4 @@ ISR (ADC_vect)
 		ADMUX = ADMUX & 0b11111110; // switch sensor reading
 	}
 }
+
