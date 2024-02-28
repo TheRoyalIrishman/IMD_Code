@@ -1,8 +1,8 @@
 /*
- * Lab 4
- * IMD_Demo4_Sensor_Integration.cpp
+ * Lab 5
+ * IMD_Demo5_H_Bridge.cpp
  *
- * Created: 2/13/2022 2:47:06 PM
+ * Created: 2/26/2024 9:37:00 PM
  * Author : Cameron Clarke, Logan York
  */ 
 
