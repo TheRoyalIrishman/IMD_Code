@@ -117,7 +117,7 @@ int main(void)
 	
     sei();
 
-	OCR0A = 100;
+	OCR0A = 0;
 
     /* Replace with your application code */
     while (1) 
@@ -130,11 +130,13 @@ int main(void)
 			ButtonPressed[0] = OFF[0];
 			ButtonPressed[1] = OFF[1];
 			ButtonPressed[2] = OFF[2];
+			direction[0] = 0b00110000 | 0;
 		}
 		else {
 			ButtonPressed[0] = ON[0];
 			ButtonPressed[1] = ON[1];
 			ButtonPressed[2] = ON[2];
+			direction[0] = 0b00110000 | 1;
 		}
 		
 		UpdateValues();
@@ -178,9 +180,15 @@ void UpdateValues()
 	// OCR0A = 100;
 	
 	SecondLineStr[3] = 0b00110000 | (OCR0A / 255);
-	SecondLineStr[4] = 0b00110000 | (OCR0A / 25);
-	SecondLineStr[5] = 0b00110000 | ((OCR0A % 25) % 25);
-	//SecondLineStr[10] = direction;
+	SecondLineStr[4] = 0b00110000 | ((OCR0A / 25) % 10);
+	SecondLineStr[5] = 0b00110000 | ((2*(OCR0A % 25) / 5) % 10);
+	//SecondLineStr[5] = 0b00110000 | ((2*(OCR0A / 5)) % 10); Close, counted in 2s though
+	SecondLineStr[10] = direction[0];
+	
+	//Debug by showing OCR0A value
+	SecondLineStr[12] = 0b00110000 | (OCR0A / 100); 
+	SecondLineStr[13] = 0b00110000 | ((OCR0A / 10) % 10);
+	SecondLineStr[14] = 0b00110000 | (OCR0A % 10);
 	
 	ThirdLineStr[8] = ButtonPressed[0];
 	ThirdLineStr[9] = ButtonPressed[1];
@@ -192,8 +200,6 @@ void UpdateValues()
 /* Display Functions                                                    */
 /************************************************************************/
 
-
-
 void DummyLoop(uint16_t count)
 {
     //Each index1 loop takes approx 100us 
@@ -204,7 +210,6 @@ void DummyLoop(uint16_t count)
         }
     }
 }
-
 
 void UpdateTWIDisplayState()
 {
@@ -447,7 +452,10 @@ ISR(TWI_vect)
 	PIND = (1<<PIND2);
 }
 
-//Interrupt Routine for A/D Completion
+/************************************************************************/
+/* Interrupt Routine for A/D Completion                                 */
+/************************************************************************/
+
 ISR (ADC_vect) {
 	
 	display_state = 0;
@@ -456,7 +464,7 @@ ISR (ADC_vect) {
 	if (isrHalfSecondCount > 4) {
 		isrHalfSecondCount = 0;
 		if(display_state==0) {
-			OCR0A += 1;
+			OCR0A += 1; //For debugging Duty Cycle conversion display
 			UpdateTWIDisplayState();
 		}
 	}
@@ -464,14 +472,15 @@ ISR (ADC_vect) {
 	time +=1;
 	
 	PORTB ^= 0x04;//Toggle Pin PB2
+	
 	readADCL = ADCL; // reading ADC low
 	//OCR0A = ADCH; //Load A/D High Register in OCR0A to set PWM Duty Cycle
 	
 	// checks if last bit in ADMUX is set - go into MUX 0
-	/* if ((ADMUX & 0b00001111) == 0) {
+	if ((ADMUX & 0b00001111) == 0) {
 		adcValueOutputZero = ADCL >> 6;
 		adcValueOutputZero = adcValueOutputZero | (ADCH << 2);
-
+		
 		ADMUX = ADMUX | (1 << MUX0); // switch sensor reading
 	}
 
@@ -481,7 +490,5 @@ ISR (ADC_vect) {
 		adcValueOutputOne = adcValueOutputOne | (ADCH << 2);
 
 		ADMUX = ADMUX & 0b11111110; // switch sensor reading
-	} */
+	}
 }
-
-
