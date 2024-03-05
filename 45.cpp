@@ -29,8 +29,8 @@ void UpdateTWIDisplayState();
 void UpdateValues();
 
 //Global variables for display strings
-volatile uint8_t FirstLineStr[21] =  "S1: XXXX            ";
-volatile uint8_t SecondLineStr[21] = "S2: XXXX            ";
+volatile uint8_t FirstLineStr[21] =  "S1:XXXX             ";
+volatile uint8_t SecondLineStr[21] = "M1:XXX D1:X         ";
 volatile uint8_t ThirdLineStr[21] =  "Button: XXX         ";
 volatile uint8_t FourthLineStr[21] = "                    ";
 
@@ -48,6 +48,10 @@ uint8_t OFF[4] = "OFF";
 
 volatile uint16_t adcValueOutputZero = 0; // MUX 0
 volatile uint16_t adcValueOutputOne = 0; // MUX 1
+
+volatile uint8_t readADCL = 0;
+
+uint8_t direction[2] = "A";
 
 int main(void)
 {
@@ -113,6 +117,7 @@ int main(void)
 	
     sei();
 
+	OCR0A = 0;
 
     /* Replace with your application code */
     while (1) 
@@ -125,11 +130,13 @@ int main(void)
 			ButtonPressed[0] = OFF[0];
 			ButtonPressed[1] = OFF[1];
 			ButtonPressed[2] = OFF[2];
+			direction[0] = 0b00110000 | 0;
 		}
-		else{
+		else {
 			ButtonPressed[0] = ON[0];
 			ButtonPressed[1] = ON[1];
 			ButtonPressed[2] = ON[2];
+			direction[0] = 0b00110000 | 1;
 		}
 		
 		UpdateValues();
@@ -158,21 +165,30 @@ ISR(TIMER1_COMPA_vect)
 
 void UpdateValues()
 {
+	
 	/*FirstLineStr[8] = 0b00110000 | ( tenths_digit & 0b00001111);
 	SecondLineStr[9] = 0b00110000 | ( seconds_tens_digit & 0b00001111);
 	SecondLineStr[10] = 0b00110000 | ( seconds_ones_digit & 0b00001111);
 	ThirdLineStr[9] = 0b00110000 | ( minutes_tens_digit & 0b00001111);
 	ThirdLineStr[10] = 0b00110000 | ( minutes_ones_digit & 0b00001111);*/
 	
-	FirstLineStr[4] = 0b00110000 | (adcValueOutputZero / 1000);
-	FirstLineStr[5] = 0b00110000 | ((adcValueOutputZero / 100) % 10);
-	FirstLineStr[6] = 0b00110000 | ((adcValueOutputZero / 10) % 10);
-	FirstLineStr[7] = 0b00110000 | (adcValueOutputZero % 10);
+	FirstLineStr[3] = 0b00110000 | (adcValueOutputZero / 1000);
+	FirstLineStr[4] = 0b00110000 | ((adcValueOutputZero / 100) % 10);
+	FirstLineStr[5] = 0b00110000 | ((adcValueOutputZero / 10) % 10);
+	FirstLineStr[6] = 0b00110000 | (adcValueOutputZero % 10);
 	
-	SecondLineStr[4] = 0b00110000 | (adcValueOutputOne / 1000);
-	SecondLineStr[5] = 0b00110000 | ((adcValueOutputOne / 100) % 10);
-	SecondLineStr[6] = 0b00110000 | ((adcValueOutputOne / 10) % 10);
-	SecondLineStr[7] = 0b00110000 | (adcValueOutputOne % 10);
+	// OCR0A = 100;
+	
+	SecondLineStr[3] = 0b00110000 | (OCR0A / 255);
+	SecondLineStr[4] = 0b00110000 | ((OCR0A / 25) % 10);
+	SecondLineStr[5] = 0b00110000 | ((2*(OCR0A % 25) / 5) % 10);
+	//SecondLineStr[5] = 0b00110000 | ((2*(OCR0A / 5)) % 10); Close, counted in 2s though
+	SecondLineStr[10] = direction[0];
+	
+	//Debug by showing OCR0A value
+	SecondLineStr[12] = 0b00110000 | (OCR0A / 100); 
+	SecondLineStr[13] = 0b00110000 | ((OCR0A / 10) % 10);
+	SecondLineStr[14] = 0b00110000 | (OCR0A % 10);
 	
 	ThirdLineStr[8] = ButtonPressed[0];
 	ThirdLineStr[9] = ButtonPressed[1];
@@ -184,8 +200,6 @@ void UpdateValues()
 /* Display Functions                                                    */
 /************************************************************************/
 
-
-
 void DummyLoop(uint16_t count)
 {
     //Each index1 loop takes approx 100us 
@@ -196,7 +210,6 @@ void DummyLoop(uint16_t count)
         }
     }
 }
-
 
 void UpdateTWIDisplayState()
 {
@@ -439,12 +452,30 @@ ISR(TWI_vect)
 	PIND = (1<<PIND2);
 }
 
-//Interrupt Routine for A/D Completion
-ISR (ADC_vect)
-{
-	PORTB ^= 0x04;//Toggle Pin PB2
-	OCR0A = ADCH; //Load A/D High Register in OCR0A to set PWM Duty Cycle
+/************************************************************************/
+/* Interrupt Routine for A/D Completion                                 */
+/************************************************************************/
 
+ISR (ADC_vect) {
+	
+	display_state = 0;
+	isrHalfSecondCount += 1;
+
+	if (isrHalfSecondCount > 4) {
+		isrHalfSecondCount = 0;
+		if(display_state==0) {
+			OCR0A += 1; //For debugging Duty Cycle conversion display
+			UpdateTWIDisplayState();
+		}
+	}
+
+	time +=1;
+	
+	PORTB ^= 0x04;//Toggle Pin PB2
+	
+	readADCL = ADCL; // reading ADC low
+	//OCR0A = ADCH; //Load A/D High Register in OCR0A to set PWM Duty Cycle
+	
 	// checks if last bit in ADMUX is set - go into MUX 0
 	if ((ADMUX & 0b00001111) == 0) {
 		adcValueOutputZero = ADCL >> 6;
@@ -452,13 +483,12 @@ ISR (ADC_vect)
 		
 		ADMUX = ADMUX | (1 << MUX0); // switch sensor reading
 	}
-	
+
 	// go into MUX 1
 	else {
 		adcValueOutputOne = ADCL >> 6;
 		adcValueOutputOne = adcValueOutputOne | (ADCH << 2);
-		
+
 		ADMUX = ADMUX & 0b11111110; // switch sensor reading
 	}
 }
-
