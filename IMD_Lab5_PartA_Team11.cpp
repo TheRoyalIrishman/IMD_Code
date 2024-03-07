@@ -4,6 +4,8 @@
  *
  * Created: 2/26/2024 9:37:00 PM
  * Author : Cameron Clarke, Logan York
+ *
+ * MUX0 to PWM, PD0-AI1, PD1-AI2
  */ 
 
 #include <avr/io.h>
@@ -461,7 +463,7 @@ ISR (ADC_vect) { //Sample every 0.1s
 	if ((ADMUX & 0b00001111) == 0) {
 		adcValueOutputZero = readADCH;
 		adcValueOutputZero = (adcValueOutputZero << 2) | (ADCL >> 6);
-		OCR0A = ADCH; //Load A/D High Register in OCR0A to set PWM Duty Cycle
+		OCR0A = readADCH; //Load A/D High Register in OCR0A to set PWM Duty Cycle
 		//OCR0A += 5; //used for lab5A to slowly increment OCR0A
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000001);          //Sets to MUX1 //Maybe, cleaner
 		//ADMUX = ADMUX | ((ADMUX & 0b11110000) | 0b00000000)  //Maybe too repetitive
@@ -469,34 +471,34 @@ ISR (ADC_vect) { //Sample every 0.1s
 	}
 	//---------------------------------  MUX 1  ---------------------------------//
 	else if ((ADMUX & 0b00001111) == 1) {
-		adcValueOutputOne = ADCL >> 6;
-		adcValueOutputOne = adcValueOutputOne | (ADCH << 2);
-		OCR0B = ADCH;
+		adcValueOutputOne = readADCH;
+		adcValueOutputOne = (adcValueOutputOne << 2) | (ADCL >> 6);
+		OCR0B = readADCH;
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000010);          //Sets to MUX2
 		//ADMUX = ADMUX & 0b11111110; // switch sensor reading, true previous way
 	}
 	//---------------------------------  MUX 2  ---------------------------------//
 	else if ((ADMUX & 0b00001111) == 2) {
-		adcValueOutputTwo = ADCL >> 6;
-		adcValueOutputTwo = adcValueOutputTwo | (ADCH << 2);
+		adcValueOutputTwo = readADCH;
+		adcValueOutputTwo = (adcValueOutputTwo << 2) | (ADCL >> 6);
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000011);          //Sets to MUX3
 	}
 	//---------------------------------  MUX 3  ---------------------------------//
 	else if ((ADMUX & 0b00001111) == 3) {
-		adcValueOutputThree = ADCL >> 6;
-		adcValueOutputThree = adcValueOutputThree | (ADCH << 2);
+		adcValueOutputThree = readADCH;
+		adcValueOutputThree = (adcValueOutputThree << 2) | (ADCL >> 6);
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000100);          //Sets to MUX4
 	}
 	//---------------------------------  MUX 4  ---------------------------------//
 	else if ((ADMUX & 0b00001111) == 4) {
-		adcValueOutputFour = ADCL >> 6;
-		adcValueOutputFour = adcValueOutputFour | (ADCH << 2);
+		adcValueOutputFour = readADCH;
+		adcValueOutputFour = (adcValueOutputFour << 2) | (ADCL >> 6);
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000101);          //Sets to MUX5
 	}
 	//---------------------------------  MUX 5  ---------------------------------//
 	else if ((ADMUX & 0b00001111) == 5) {
-		adcValueOutputFive = ADCL >> 6;
-		adcValueOutputFive = adcValueOutputFive | (ADCH << 2);
+		adcValueOutputFive = readADCH;
+		adcValueOutputFive = (adcValueOutputFive << 2) | (ADCL >> 6);
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000000);          //Sets to MUX0
 	}
 	else{
