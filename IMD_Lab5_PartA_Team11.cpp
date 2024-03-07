@@ -1,6 +1,6 @@
 /*
- * Lab 5
- * IMD_Demo5_H_Bridge.cpp
+ * Lab 5A
+ * IMD_Demo5A_H_Bridge.cpp
  *
  * Created: 2/26/2024 9:37:00 PM
  * Author : Cameron Clarke, Logan York
@@ -32,8 +32,8 @@ void UpdateValues();
 void ReadButton();
 
 //Global variables for display strings
-volatile uint8_t FirstLineStr[21] =  "S1:XXXX             ";
-volatile uint8_t SecondLineStr[21] = "M1:XXX D1:X         ";
+volatile uint8_t FirstLineStr[21] =  "S2:XXXX             ";
+volatile uint8_t SecondLineStr[21] = "M2:XXX D2:X         ";
 volatile uint8_t ThirdLineStr[21] =  "Button: XXX         ";
 volatile uint8_t FourthLineStr[21] = "                    ";
 
@@ -113,6 +113,7 @@ int main(void)
 	TCCR0A = (1 << COM0A1) | (0 << COM0A0) | (1 << COM0B1) | (0 << COM0B0) | (1 << WGM01) | (1 << WGM00);//Setup Fast PWM Mode for Channel A
 	TCCR0B = (0 << WGM02) | (1 << CS02) | (0 << CS01) | (1 << CS00); //Define Clock Source Prescaler
 	OCR0A = 1; //Initialized PWM Duty Cycle
+	OCR0B = 1;
 	
 	//**************************************************************************************
 	//Configure A/D
@@ -123,7 +124,6 @@ int main(void)
 	DIDR0 = (1 << ADC0D); //Disable Input Buffers
 	ADCSRA |= (1 << ADSC); //Start Conversion
 
-
 	//Initialize Display
 	display_state=17;//Set state machine to initialization section
 	UpdateTWIDisplayState();//Run state machine
@@ -133,21 +133,6 @@ int main(void)
     while (1) 
     {
 		ReadButton();
-		/*
-		//Read Button, let's make this into a function for easy while loop readability.
-		if(PINB & 0b00001000){
-			ButtonPressed[0] = OFF[0];
-			ButtonPressed[1] = OFF[1];
-			ButtonPressed[2] = OFF[2];
-			direction[0] = 0b00110000 | 0; //Clockwise
-		}
-		else {
-			ButtonPressed[0] = ON[0];
-			ButtonPressed[1] = ON[1];
-			ButtonPressed[2] = ON[2];
-			direction[0] = 0b00110000 | 1; //Counterclockwise
-		} */
-		
 		UpdateValues();
     }
 }
@@ -453,7 +438,7 @@ ISR(TWI_vect)
 /************************************************************************/
 
 ISR (ADC_vect) { //Sample every 0.1s	
-	PORTB ^= 0x04;//Toggle Pin PB2
+	
 	
 	readADCL = ADCL; // reading ADC low register
 	readADCH = ADCH; // reading ADC high register
@@ -462,12 +447,13 @@ ISR (ADC_vect) { //Sample every 0.1s
 	//---------------------------------  MUX 0  ---------------------------------//
 	if ((ADMUX & 0b00001111) == 0) {
 		adcValueOutputZero = readADCH;
-		adcValueOutputZero = (adcValueOutputZero << 2) | (ADCL >> 6);
+		adcValueOutputZero = (adcValueOutputZero << 2) | (readADCL >> 6);
 		OCR0A = readADCH; //Load A/D High Register in OCR0A to set PWM Duty Cycle
 		//OCR0A += 5; //used for lab5A to slowly increment OCR0A
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000001);          //Sets to MUX1 //Maybe, cleaner
 		//ADMUX = ADMUX | ((ADMUX & 0b11110000) | 0b00000000)  //Maybe too repetitive
 		//ADMUX = ADMUX | (1 << MUX0);                       // switch sensor reading, true previous way
+		PORTB ^= 0x04;//Toggle Pin PB2, white led
 	}
 	//---------------------------------  MUX 1  ---------------------------------//
 	else if ((ADMUX & 0b00001111) == 1) {
@@ -524,3 +510,4 @@ void ReadButton(){
 		//OC0B PD7
 	}
 }
+
