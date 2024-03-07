@@ -110,7 +110,7 @@ int main(void)
 	//**************************************************************************************
 	//Configure Timer 0
 	//**************************************************************************************
-	TCCR0A = (1 << COM0A1) | (0 << COM0A0) | (1 << COM0B1) | (0 << COM0B0) | (1 << WGM01) | (1 << WGM00);//Setup Fast PWM Mode for Channel A
+	TCCR0A = (1 << COM0A1) | (0 << COM0A0) | (1 << COM0B1) | (1 << COM0B0) | (1 << WGM01) | (1 << WGM00);//Setup Fast PWM Mode for Channel A
 	TCCR0B = (0 << WGM02) | (1 << CS02) | (0 << CS01) | (1 << CS00); //Define Clock Source Prescaler
 	OCR0A = 1; //Initialized PWM Duty Cycle
 	OCR0B = 1;
@@ -462,17 +462,8 @@ ISR (ADC_vect) { //Sample every 0.1s
 	else if ((ADMUX & 0b00001111) == 1) {
 		adcValueOutputOne = readADCH;
 		adcValueOutputOne = (adcValueOutputOne << 2) | (readADCL >> 6);
-		if (direction[0] == 0b00110000) {		//clockwise
-			OCR0A = readADCH;
-			OCR0B = ~OCR0A;	
-			
-		}
-		else if (direction[0] == 0b00110001) {	//counterclockwise
-			OCR0B = readADCH;
-			OCR0A = ~OCR0B;
-			PORTD ^= 0b10000000;
-		}
-
+		OCR0A = readADCH;	//A clear on compare match COM0A1=0, COM0A0=1
+		OCR0B = OCR0A;		//B set on compare match COM0B1=1, COM0B0=1
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000010);          //Sets to MUX2
 		//ADMUX = ADMUX & 0b11111110; // switch sensor reading, true previous way
 	}
@@ -523,4 +514,3 @@ void ReadButton(){
 		//OC0B PD7
 	}
 }
-
