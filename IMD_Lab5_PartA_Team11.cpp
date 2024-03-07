@@ -1,6 +1,6 @@
 /*
- * Lab 5A
- * IMD_Demo5A_H_Bridge.cpp
+ * Lab 5
+ * IMD_Demo5_H_Bridge.cpp
  *
  * Created: 2/26/2024 9:37:00 PM
  * Author : Cameron Clarke, Logan York
@@ -111,9 +111,8 @@ int main(void)
 	//Configure Timer 0
 	//**************************************************************************************
 	TCCR0A = (1 << COM0A1) | (0 << COM0A0) | (1 << COM0B1) | (0 << COM0B0) | (1 << WGM01) | (1 << WGM00);//Setup Fast PWM Mode for Channel A
-	TCCR0B = (0 << WGM02) | (1 << CS02) | (0 << CS01) | (1 << CS00); //Define Clock Source Prescaler
+	TCCR0B = (0 << WGM02) | (0 << CS02) | (1 << CS01) | (0 << CS00); //Define Clock Source Prescaler
 	OCR0A = 1; //Initialized PWM Duty Cycle
-	OCR0B = 1;
 	
 	//**************************************************************************************
 	//Configure A/D
@@ -445,21 +444,21 @@ ISR (ADC_vect) { //Sample every 0.1s
 	
 	// checks if last bit in ADMUX is set - go into MUX 0
 	//---------------------------------  MUX 0  ---------------------------------//
-	if ((ADMUX & 0b00001111) == 0) {
+	if (1){//(ADMUX & 0b00001111) == 0) {
 		adcValueOutputZero = readADCH;
 		adcValueOutputZero = (adcValueOutputZero << 2) | (readADCL >> 6);
 		OCR0A = readADCH; //Load A/D High Register in OCR0A to set PWM Duty Cycle
 		//OCR0A += 5; //used for lab5A to slowly increment OCR0A
-		ADMUX = ((ADMUX & 0b11110000) | 0b00000001);          //Sets to MUX1 //Maybe, cleaner
+		//ADMUX = ((ADMUX & 0b11110000) | 0b00000001);          //Sets to MUX1 //Maybe, cleaner
 		//ADMUX = ADMUX | ((ADMUX & 0b11110000) | 0b00000000)  //Maybe too repetitive
 		//ADMUX = ADMUX | (1 << MUX0);                       // switch sensor reading, true previous way
-		PORTB ^= 0x04;//Toggle Pin PB2, white led
+		PORTB ^= 0x04;//Toggle Pin PB2
 	}
 	//---------------------------------  MUX 1  ---------------------------------//
-	else if ((ADMUX & 0b00001111) == 1) {
+	/*else if ((ADMUX & 0b00001111) == 1) {
 		adcValueOutputOne = readADCH;
 		adcValueOutputOne = (adcValueOutputOne << 2) | (readADCL >> 6);
-		OCR0B = readADCH;
+		//OCR0B = readADCH;
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000010);          //Sets to MUX2
 		//ADMUX = ADMUX & 0b11111110; // switch sensor reading, true previous way
 	}
@@ -489,7 +488,7 @@ ISR (ADC_vect) { //Sample every 0.1s
 	}
 	else{
 		//PIND = PIND | (1<<PIND5); //Put LED on here to check error
-	}
+	}*/
 }
 
 void ReadButton(){
@@ -510,4 +509,3 @@ void ReadButton(){
 		//OC0B PD7
 	}
 }
-
