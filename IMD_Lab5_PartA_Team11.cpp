@@ -32,8 +32,8 @@ void UpdateValues();
 void ReadButton();
 
 //Global variables for display strings
-volatile uint8_t FirstLineStr[21] =  "S2:XXXX             ";
-volatile uint8_t SecondLineStr[21] = "M2:XXX D2:X         ";
+volatile uint8_t FirstLineStr[21] =  "S1:XXXX             ";
+volatile uint8_t SecondLineStr[21] = "M1:XXX D1:X         ";
 volatile uint8_t ThirdLineStr[21] =  "Button: XXX         ";
 volatile uint8_t FourthLineStr[21] = "                    ";
 
