@@ -458,7 +458,7 @@ ISR (ADC_vect) { //Sample every 0.1s
 	//---------------------------------  MUX 1  ---------------------------------//
 	else if ((ADMUX & 0b00001111) == 1) {
 		adcValueOutputOne = readADCH;
-		adcValueOutputOne = (adcValueOutputOne << 2) | (ADCL >> 6);
+		adcValueOutputOne = (adcValueOutputOne << 2) | (readADCL >> 6);
 		OCR0B = readADCH;
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000010);          //Sets to MUX2
 		//ADMUX = ADMUX & 0b11111110; // switch sensor reading, true previous way
@@ -466,25 +466,25 @@ ISR (ADC_vect) { //Sample every 0.1s
 	//---------------------------------  MUX 2  ---------------------------------//
 	else if ((ADMUX & 0b00001111) == 2) {
 		adcValueOutputTwo = readADCH;
-		adcValueOutputTwo = (adcValueOutputTwo << 2) | (ADCL >> 6);
+		adcValueOutputTwo = (adcValueOutputTwo << 2) | (readADCL >> 6);
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000011);          //Sets to MUX3
 	}
 	//---------------------------------  MUX 3  ---------------------------------//
 	else if ((ADMUX & 0b00001111) == 3) {
 		adcValueOutputThree = readADCH;
-		adcValueOutputThree = (adcValueOutputThree << 2) | (ADCL >> 6);
+		adcValueOutputThree = (adcValueOutputThree << 2) | (readADCL >> 6);
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000100);          //Sets to MUX4
 	}
 	//---------------------------------  MUX 4  ---------------------------------//
 	else if ((ADMUX & 0b00001111) == 4) {
 		adcValueOutputFour = readADCH;
-		adcValueOutputFour = (adcValueOutputFour << 2) | (ADCL >> 6);
+		adcValueOutputFour = (adcValueOutputFour << 2) | (readADCL >> 6);
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000101);          //Sets to MUX5
 	}
 	//---------------------------------  MUX 5  ---------------------------------//
 	else if ((ADMUX & 0b00001111) == 5) {
 		adcValueOutputFive = readADCH;
-		adcValueOutputFive = (adcValueOutputFive << 2) | (ADCL >> 6);
+		adcValueOutputFive = (adcValueOutputFive << 2) | (readADCL >> 6);
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000000);          //Sets to MUX0
 	}
 	else{
