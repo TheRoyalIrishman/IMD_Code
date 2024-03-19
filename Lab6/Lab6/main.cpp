@@ -1,10 +1,3 @@
-/*
- * Lab6.cpp
- *
- * Created: 3/18/2024 9:31:05 PM
- * Author : CamsComputer
- */ 
-
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
@@ -29,8 +22,8 @@ void UpdateValues();
 void ReadButton();
 
 //Global variables for display strings
-volatile uint8_t FirstLineStr[21] =  "S2:XXXX             ";
-volatile uint8_t SecondLineStr[21] = "M2:XXX D2:X         ";
+volatile uint8_t FirstLineStr[21] =  "S1:XXXX             ";
+volatile uint8_t SecondLineStr[21] = "M1:XXX D1:X         ";
 volatile uint8_t ThirdLineStr[21] =  "Button: XXX         ";
 volatile uint8_t FourthLineStr[21] = "                    ";
 
@@ -55,8 +48,6 @@ volatile uint16_t adcValueOutputFive = 0; // MUX 5
 
 volatile uint8_t readADCL = 0;
 volatile uint8_t readADCH = 0;
-
-volatile uint8_t integrationTimeChecker = 0;
 
 uint8_t direction[2] = "A";
 
@@ -124,10 +115,9 @@ int main(void)
 	//**************************************************************************************
 	//Configure Timer 0
 	//**************************************************************************************
-	TCCR0A = (1 << COM0A1) | (0 << COM0A0) | (1 << COM0B1) | (1 << COM0B0) | (1 << WGM01) | (1 << WGM00);//Setup Fast PWM Mode for Channel A
-	TCCR0B = (0 << WGM02) | (1 << CS02) | (0 << CS01) | (1 << CS00); //Define Clock Source Prescaler
+	TCCR0A = (1 << COM0A1) | (0 << COM0A0) | (1 << COM0B1) | (0 << COM0B0) | (1 << WGM01) | (1 << WGM00);//Setup Fast PWM Mode for Channel A
+	TCCR0B = (0 << WGM02) | (0 << CS02) | (1 << CS01) | (0 << CS00); //Define Clock Source Prescaler
 	OCR0A = 1; //Initialized PWM Duty Cycle
-	OCR0B = 1;
 	
 	//**************************************************************************************
 	//Configure A/D
@@ -158,8 +148,6 @@ ISR(TIMER1_COMPA_vect)
 	//display_state = 0;
 	isrHalfSecondCount += 1;
 	
-	integrationTimeChecker += 1; // used in PID control and will reset the term for oscillation error
-	
 	if (isrHalfSecondCount > 4) {
 		isrHalfSecondCount = 0;
 		UpdateTWIDisplayState();
@@ -176,23 +164,20 @@ ISR(TIMER1_COMPA_vect)
 
 void UpdateValues()
 {
-	FirstLineStr[3] = 0b00110000 | (adcValueOutputOne / 1000);
-	FirstLineStr[4] = 0b00110000 | ((adcValueOutputOne / 100) % 10);
-	FirstLineStr[5] = 0b00110000 | ((adcValueOutputOne / 10) % 10);
-	FirstLineStr[6] = 0b00110000 | (adcValueOutputOne % 10);
+	FirstLineStr[3] = 0b00110000 | (adcValueOutputZero / 1000);
+	FirstLineStr[4] = 0b00110000 | ((adcValueOutputZero / 100) % 10);
+	FirstLineStr[5] = 0b00110000 | ((adcValueOutputZero / 10) % 10);
+	FirstLineStr[6] = 0b00110000 | (adcValueOutputZero % 10);
 	
 	//Display duty cycle in terms of percentage
 	SecondLineStr[3] = 0b00110000 | (OCR0A / 255);
 	SecondLineStr[4] = 0b00110000 | ((OCR0A / 25) % 10);
-	SecondLineStr[5] = 0b00110000 | ((2*(OCR0A % 25) / 5) % 10)/2;
+	SecondLineStr[5] = 0b00110000 | ((2*(OCR0A % 25) / 5) % 10);
 	SecondLineStr[10] = direction[0];
-	//Debug by showing OCR0A and B value
+	//Debug by showing OCR0A value
 	SecondLineStr[12] = 0b00110000 | (OCR0A / 100); 
 	SecondLineStr[13] = 0b00110000 | ((OCR0A / 10) % 10);
 	SecondLineStr[14] = 0b00110000 | (OCR0A % 10);
-	SecondLineStr[16] = 0b00110000 | (OCR0B / 100);
-	SecondLineStr[17] = 0b00110000 | ((OCR0B / 10) % 10);
-	SecondLineStr[18] = 0b00110000 | (OCR0B % 10);
 	
 	ThirdLineStr[8] = ButtonPressed[0];
 	ThirdLineStr[9] = ButtonPressed[1];
@@ -462,27 +447,23 @@ ISR (ADC_vect) { //Sample every 0.1s
 	readADCL = ADCL; // reading ADC low register
 	readADCH = ADCH; // reading ADC high register
 	
-	// OCR0A ----> left motor
-	// OCR0B ----> right motor
-	
 	// checks if last bit in ADMUX is set - go into MUX 0
 	//---------------------------------  MUX 0  ---------------------------------//
-	if ((ADMUX & 0b00001111) == 0) {
+	if (1){//(ADMUX & 0b00001111) == 0) {
 		adcValueOutputZero = readADCH;
 		adcValueOutputZero = (adcValueOutputZero << 2) | (readADCL >> 6);
-		//OCR0A = readADCH; //Load A/D High Register in OCR0A to set PWM Duty Cycle
+		OCR0A = readADCH; //Load A/D High Register in OCR0A to set PWM Duty Cycle
 		//OCR0A += 5; //used for lab5A to slowly increment OCR0A
-		ADMUX = ((ADMUX & 0b11110000) | 0b00000001);          //Sets to MUX1 //Maybe, cleaner
+		//ADMUX = ((ADMUX & 0b11110000) | 0b00000001);          //Sets to MUX1 //Maybe, cleaner
 		//ADMUX = ADMUX | ((ADMUX & 0b11110000) | 0b00000000)  //Maybe too repetitive
 		//ADMUX = ADMUX | (1 << MUX0);                       // switch sensor reading, true previous way
-		PORTB ^= 0x04;//Toggle Pin PB2, white led
+		PORTB ^= 0x04;//Toggle Pin PB2
 	}
 	//---------------------------------  MUX 1  ---------------------------------//
-	else if ((ADMUX & 0b00001111) == 1) {
+	/*else if ((ADMUX & 0b00001111) == 1) {
 		adcValueOutputOne = readADCH;
 		adcValueOutputOne = (adcValueOutputOne << 2) | (readADCL >> 6);
-		OCR0A = readADCH;	//A clear on compare match COM0A1=0, COM0A0=1
-		OCR0B = OCR0A;		//B set on compare match COM0B1=1, COM0B0=1
+		//OCR0B = readADCH;
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000010);          //Sets to MUX2
 		//ADMUX = ADMUX & 0b11111110; // switch sensor reading, true previous way
 	}
@@ -512,7 +493,7 @@ ISR (ADC_vect) { //Sample every 0.1s
 	}
 	else{
 		//PIND = PIND | (1<<PIND5); //Put LED on here to check error
-	}
+	}*/
 }
 
 void ReadButton(){
@@ -534,14 +515,16 @@ void ReadButton(){
 	}
 }
 
-signed float PID(signed float desiredValue, signed float measuredValue) {
+signed float PID(signed float leftWheelValue, signed float rightWheelValue) {
 	/*if (integrationTimeChecker >= 20) { // >= 20 is equal to 2 seconds
 		integrationTimeChecker = 0; // will stop the oscillation error
 		integralTerm = 0;
 	}*/
 	
-	errorTerm = desiredValue - measuredValue;
+	errorTerm = leftWheelValue - rightWheelValue;
 	proportionalOffset = Kp * errorTerm;
+	
+	
 	
 	//integralTerm = integralTerm + errorTerm * dt;
 	//derivativeTerm = Kd * (errorTerm - previousError) / dt;
