@@ -60,21 +60,20 @@ uint8_t direction[2] = "A";
 
 int main(void)
 {
-
     //Configure I/O
     //Set SDA (PC4) and SCL (PC5) as outputs for TWI bus
     DDRC = (1<<PORTC5)|(1<<PORTC4);
-    //Configure PD0 as output for debug output
-    DDRD = (1<<PORTD0)|(1<<PORTD1)|(1<<PORTD2)|(1<<PORTD3);
+    DDRD = (1<<PORTD0)|(1<<PORTD1)|(1<<PORTD2)|(1<<PORTD3)|(1<<PORTD4)|(1<<PORTD5)|(1<<PORTD6)|(1<<PORTD7);
 	DDRB = (1<<PORTB1);
 
+	
     //Configure Timer 1 to generate an ISR every 100ms
     //No Pin Toggles, CTC Mode
-    TCCR1A = (0<<COM1A1)|(1<<COM1A0)|(0<<COM1B1)|(0<<COM1B0)|(0<<WGM11)|(0<<WGM01);
+    TCCR1A = (1<<COM1A1)|(0<<COM1A0)|(1<<COM1B1)|(0<<COM1B0)|(0<<WGM11)|(0<<WGM01);
     //CTC Mode, N=64
     TCCR1B = (0<<ICNC1)|(0<<ICES1)|(0<<WGM13)|(1<<WGM12)|(0<<CS12)|(1<<CS11)|(1<<CS10);
     //Enable Channel A Match Interrupt
-    TIMSK1 = (0<<ICIE1)|(0<<OCIE1B)|(1<<OCIE1A)|(0<<TOIE1);
+    TIMSK1 = (0<<ICIE1)|(1<<OCIE1B)|(1<<OCIE1A)|(0<<TOIE1);
     //Setup output compare for channel A
     OCR1A = 24999; //OCR1A = 16Mhz/N*Deltat-1 = 16Mhz/64*.1-1
 	//OCR1B = 6249; // 0.1s * (16 MHz / 256) - 1
@@ -100,15 +99,15 @@ int main(void)
 	//Configure Timer 1
 	//**************************************************************************************
 	//Setup Compare Output Mode for Channel A and Wave Generation Mode
-	TCCR1A = (0<<COM1A1)|(1<<COM1A0)|(0<<COM1B1)|(0<<COM1B0)|(0<<WGM11)|(0<<WGM01);     //No pin Toggles, CTC Mode
+	/*TCCR1A = (0<<COM1A1)|(1<<COM1A0)|(0<<COM1B1)|(0<<COM1B0)|(0<<WGM11)|(0<<WGM01);     //No pin Toggles, CTC Mode
 	TCCR1B = (0<<ICNC1)|(0<<ICES1)|(0<<WGM13)|(1<<WGM12)|(0<<CS12)|(1<<CS11)|(1<<CS10); //Define Clock Source Prescaler, N=64
 	OCR1A = 24999; //Set Output Compare A to match every 24999 clocks (24999x8uS =100mS) ---OCR1A = 16Mhz/N*Deltat-1 = 16Mhz/64*.1-1
 	TIMSK1 = (0<<ICIE1)|(0<<OCIE1B)|(1<<OCIE1A)|(0<<TOIE1); //Enable Interrupt for Output Compare A Match
-
+*/
 	//**************************************************************************************
 	//Configure Timer 0
 	//**************************************************************************************
-	TCCR0A = (1 << COM0A1) | (0 << COM0A0) | (1 << WGM01) | (1 << WGM00);//Setup Fast PWM Mode for Channel A
+	TCCR0A = (1 << COM0A1) | (0 << COM0A0) | (1 << COM0B1) | (0 << COM0B0) | (1 << WGM01) | (1 << WGM00);//Setup Fast PWM Mode for Channel A
 	TCCR0B = (0 << WGM02) | (1 << CS02) | (0 << CS01) | (1 << CS00); //Define Clock Source Prescaler
 	OCR0A = 64; //Initialized PWM Duty Cycle
 	
@@ -130,9 +129,7 @@ int main(void)
 
     while (1) 
     {
-        //Toggle Pin
-		PIND = (1<<PIND0);
-		
+		ReadButton();
 		/*
 		//Read Button, let's make this into a function for easy while loop readability.
 		if(PINB & 0b00001000){
@@ -161,6 +158,7 @@ ISR(TIMER1_COMPA_vect)
 	
 	if (isrHalfSecondCount > 4) {
 		isrHalfSecondCount = 0;
+		UpdateTWIDisplayState();
 		if(display_state==0) {
 			UpdateTWIDisplayState();
 		}
@@ -168,7 +166,7 @@ ISR(TIMER1_COMPA_vect)
 	
 	time +=1;
 	
-	PORTB ^= 0x01; //Toggle Pin PD0 - this is a breadcrumb to say "did we get into ISR"
+	PORTB ^= 0x01; //Toggle Pin PD0 - this is a breadcrumb to say "did we get into ISR"  //white led
 	ADCSRA |= (1 << ADSC); //Start Conversion
 }
 
@@ -324,7 +322,6 @@ void UpdateTWIDisplayState()
 		/************************************************************************/	
 		case 17: //Initialize Step One
 			DummyLoop(400);//Wait 40ms for powerup
-
 			TWCR = TWCR_START;
 			display_state++;
 			break;
@@ -423,7 +420,6 @@ void UpdateTWIDisplayState()
 
 ISR(TWI_vect)
 {
-	PIND = (1<<PIND2);
 	//Read status register and mask out prescaler bits
 	uint8_t status = TWSR & 0xF8;
 
@@ -449,38 +445,24 @@ ISR(TWI_vect)
 			//This is an error, do something application specific
 			break;
 	}
-	PIND = (1<<PIND2);
 }
 
 /************************************************************************/
 /* Interrupt Routine for A/D Completion                                 */
 /************************************************************************/
 
-ISR (ADC_vect) { //Sample every 0.1s
-	
-	display_state = 0;
-	isrHalfSecondCount += 1;
-
-	if (isrHalfSecondCount > 4) { //update display every 0.5s
-		isrHalfSecondCount = 0;
-		if(display_state==0) {    //could probably take out since we set display state to 0 above
-			//OCR0A += 1;         //For debugging Duty Cycle conversion display---------------------------------------
-			UpdateTWIDisplayState();
-		}
-	}
-
-	time +=1;
-	
+ISR (ADC_vect) { //Sample every 0.1s	
 	PORTB ^= 0x04;//Toggle Pin PB2
 	
-	readADCL = ADCL; // reading ADC low
-	OCR0A = ADCH; //Load A/D High Register in OCR0A to set PWM Duty Cycle
+	//readADCL = ADCL; // reading ADC low
+	//OCR0A = ADCH; //Load A/D High Register in OCR0A to set PWM Duty Cycle
 	
 	// checks if last bit in ADMUX is set - go into MUX 0
 	//---------------------------------  MUX 0  ---------------------------------//
 	if ((ADMUX & 0b00001111) == 0) {
 		adcValueOutputZero = ADCL >> 6;
 		adcValueOutputZero = adcValueOutputZero | (ADCH << 2);
+		OCR0A = ADCH;
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000001);          //Sets to MUX1 //Maybe, cleaner
 		//ADMUX = ADMUX | ((ADMUX & 0b11110000) | 0b00000000)  //Maybe too repetitive
 		//ADMUX = ADMUX | (1 << MUX0);                       // switch sensor reading, true previous way
@@ -489,6 +471,7 @@ ISR (ADC_vect) { //Sample every 0.1s
 	else if ((ADMUX & 0b00001111) == 1) {
 		adcValueOutputOne = ADCL >> 6;
 		adcValueOutputOne = adcValueOutputOne | (ADCH << 2);
+		OCR0B = ADCH;
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000010);          //Sets to MUX2
 		//ADMUX = ADMUX & 0b11111110; // switch sensor reading, true previous way
 	}
@@ -523,15 +506,19 @@ ISR (ADC_vect) { //Sample every 0.1s
 
 void ReadButton(){
 	if(PINB & 0b00001000){
+		PORTB = (PORTB | (1<<PORTB0)) & ~(1<<PORTB1);
+		direction[0] = 0b00110000 | 0; //Clockwise		
 		ButtonPressed[0] = OFF[0];
 		ButtonPressed[1] = OFF[1];
 		ButtonPressed[2] = OFF[2];
-		direction[0] = 0b00110000 | 0; //Clockwise
 	}
 	else {
+		PORTB = (PORTB & ~(1<<PORTB0)) | (1<<PORTB1);
+		direction[0] = 0b00110000 | 1; //Counterclockwise
 		ButtonPressed[0] = ON[0];
 		ButtonPressed[1] = ON[1];
 		ButtonPressed[2] = ON[2];
-		direction[0] = 0b00110000 | 1; //Counterclockwise
+		//OC0A PD6
+		//OC0B PD7
 	}
 }
