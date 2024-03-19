@@ -56,7 +56,24 @@ volatile uint16_t adcValueOutputFive = 0; // MUX 5
 volatile uint8_t readADCL = 0;
 volatile uint8_t readADCH = 0;
 
+volatile uint8_t integrationTimeChecker = 0;
+
 uint8_t direction[2] = "A";
+
+signed float previousError = 0;
+signed float proportionalOffset = 0;
+signed float integralTerm = 0;
+signed float derivativeTerm = 0;
+
+signed float errorTerm = 0;
+signed float outputValue = 0;
+
+const signed float Kp = 1.0;
+const signed float Ki = 0.0;
+const signed float Kd = 0.0;
+const signed float dt = 1.0;
+
+const signed float robotSpeed = 2.5;
 
 int main(void)
 {
@@ -140,6 +157,8 @@ ISR(TIMER1_COMPA_vect)
     //Start New LCD Screen Update
 	//display_state = 0;
 	isrHalfSecondCount += 1;
+	
+	integrationTimeChecker += 1; // used in PID control and will reset the term for oscillation error
 	
 	if (isrHalfSecondCount > 4) {
 		isrHalfSecondCount = 0;
@@ -443,6 +462,9 @@ ISR (ADC_vect) { //Sample every 0.1s
 	readADCL = ADCL; // reading ADC low register
 	readADCH = ADCH; // reading ADC high register
 	
+	// OCR0A ----> left motor
+	// OCR0B ----> right motor
+	
 	// checks if last bit in ADMUX is set - go into MUX 0
 	//---------------------------------  MUX 0  ---------------------------------//
 	if ((ADMUX & 0b00001111) == 0) {
@@ -512,26 +534,22 @@ void ReadButton(){
 	}
 }
 
-signed float PID(unsigned float desiredValue, unsigned float measuredValue) {
-	const signed float Kp = 1.0;
-	const signed float Ki = 0.0;
-	const signed float Kd = 0.0;
-	const signed float dt = 1.0;
-	
-	static signed float previousError = 0;
-	static signed float proportionalTerm = 0;
-	static signed float integralTerm = 0;
-	static signed float derivativeTerm = 0;
-	
-	signed float errorTerm = 0;
-	signed float outputValue = 0;
+signed float PID(signed float desiredValue, signed float measuredValue) {
+	/*if (integrationTimeChecker >= 20) { // >= 20 is equal to 2 seconds
+		integrationTimeChecker = 0; // will stop the oscillation error
+		integralTerm = 0;
+	}*/
 	
 	errorTerm = desiredValue - measuredValue;
-	proportionalTerm = Kp * errorTerm;
-	integralTerm = integralTerm + errorTerm * dt;
-	derivativeTerm = Kd * (errorTerm - previousError) / dt;
+	proportionalOffset = Kp * errorTerm;
+	
+	//integralTerm = integralTerm + errorTerm * dt;
+	//derivativeTerm = Kd * (errorTerm - previousError) / dt;
 	previousError = errorTerm;
-	outputValue = proportionalTerm + integralTerm + derivativeTerm;
+	outputValue = proportionalOffset;
+	
+	OCR0A = robotSpeed + proportionalOffset; // once we get to integrating integral and derivative, this will be robotSpeed +/- outputValue
+	OCR0B = robotSpeed - proportionalOffset;
 	
 	return outputValue;
 }
