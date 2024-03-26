@@ -20,6 +20,9 @@ void DummyLoop(uint16_t);
 void UpdateTWIDisplayState();
 void UpdateValues();
 void ReadButton();
+signed float PID(signed float, signed float);
+void SetMotorSpeed(signed float, signed float);
+void oscillationCheck(int, int);
 
 //Global variables for display strings
 volatile uint8_t FirstLineStr[21] =  "S1:XXXX             ";
@@ -141,25 +144,70 @@ int main(void)
     }
 }
 
+void ReadButton(){
+	if(PINB & 0b00001000){
+		PORTD = (PORTD | (1<<PORTD0)) & ~(1<<PORTD1);
+		direction[0] = 0b00110000 | 0; //Clockwise		
+		ButtonPressed[0] = OFF[0];
+		ButtonPressed[1] = OFF[1];
+		ButtonPressed[2] = OFF[2];
+	}
+	else {
+		PORTD = (PORTD & ~(1<<PORTD0)) | (1<<PORTD1);
+		direction[0] = 0b00110000 | 1; //Counterclockwise
+		ButtonPressed[0] = ON[0];
+		ButtonPressed[1] = ON[1];
+		ButtonPressed[2] = ON[2];
+		//OC0A PD6
+		//OC0B PD7
+	}
+}
 
-ISR(TIMER1_COMPA_vect)
-{
-    //Start New LCD Screen Update
-	//display_state = 0;
-	isrHalfSecondCount += 1;
+signed float PID(signed float leftWheelValue, signed float rightWheelValue) {
+	/*if (integrationTimeChecker >= 20) { // >= 20 is equal to 2 seconds
+		integrationTimeChecker = 0; // will stop the oscillation error
+		integralTerm = 0;
+	}*/
 	
-	if (isrHalfSecondCount > 4) {
-		isrHalfSecondCount = 0;
-		UpdateTWIDisplayState();
-		if(display_state==0) {
-			UpdateTWIDisplayState();
-		}
+	errorTerm = leftWheelValue - rightWheelValue;
+	proportionalOffset = Kp * errorTerm;
+	
+	
+	
+	//integralTerm = integralTerm + errorTerm * dt;
+	//derivativeTerm = Kd * (errorTerm - previousError) / dt;
+	previousError = errorTerm;
+	outputValue = proportionalOffset;
+	
+	OCR0A = robotSpeed + proportionalOffset; // once we get to integrating integral and derivative, this will be robotSpeed +/- outputValue
+	OCR0B = robotSpeed - proportionalOffset;
+	
+	return outputValue;
+}
+
+void SetMotorSpeed(signed float leftMotorSpeed, signed float rightMotorSpeed) {
+	OCR0A = leftMotorSpeed;
+	OCR0B = rightMotorSpeed;
+}
+
+void oscillationCheck(int previousTurnDirection, int currentTurnDirection) {
+	unsigned int oscillationCounter = 0;
+	
+	// right turn translates to 0x01
+	// left turn translates to 0x02
+	
+	// checks if there was a left-to-right or right-to-left turn
+	if ((previousTurnDirection | currentTurnDirection) & 0x03) {
+		// increment number of oscillations
+		oscillationCounter++;
+	} else {
+		// reset number of oscillations
+		oscillationCounter = 0;
 	}
 	
-	time +=1;
-	
-	PORTB ^= 0x01; //Toggle Pin PD0 - this is a breadcrumb to say "did we get into ISR"  //red led
-	ADCSRA |= (1 << ADSC); //Start Conversion
+	if (oscillationCounter > 20) {
+		// implement escape routine
+	}
 }
 
 void UpdateValues()
@@ -496,43 +544,55 @@ ISR (ADC_vect) { //Sample every 0.1s
 	}*/
 }
 
-void ReadButton(){
-	if(PINB & 0b00001000){
-		PORTD = (PORTD | (1<<PORTD0)) & ~(1<<PORTD1);
-		direction[0] = 0b00110000 | 0; //Clockwise		
-		ButtonPressed[0] = OFF[0];
-		ButtonPressed[1] = OFF[1];
-		ButtonPressed[2] = OFF[2];
+ISR(TIMER1_COMPA_vect)
+{
+	//Start New LCD Screen Update
+	//display_state = 0;
+	isrHalfSecondCount += 1;
+	
+	if (isrHalfSecondCount > 4) {
+		isrHalfSecondCount = 0;
+		UpdateTWIDisplayState();
+		if(display_state==0) {
+			UpdateTWIDisplayState();
+		}
 	}
-	else {
-		PORTD = (PORTD & ~(1<<PORTD0)) | (1<<PORTD1);
-		direction[0] = 0b00110000 | 1; //Counterclockwise
-		ButtonPressed[0] = ON[0];
-		ButtonPressed[1] = ON[1];
-		ButtonPressed[2] = ON[2];
-		//OC0A PD6
-		//OC0B PD7
-	}
+	
+	time +=1;
+	
+	PORTB ^= 0x01; //Toggle Pin PD0 - this is a breadcrumb to say "did we get into ISR"  //red led
+	ADCSRA |= (1 << ADSC); //Start Conversion
 }
 
-signed float PID(signed float leftWheelValue, signed float rightWheelValue) {
-	/*if (integrationTimeChecker >= 20) { // >= 20 is equal to 2 seconds
-		integrationTimeChecker = 0; // will stop the oscillation error
-		integralTerm = 0;
-	}*/
+ISR(TIMER1_OVF_vect) {
+	unsigned int backupCounter = 0;
 	
-	errorTerm = leftWheelValue - rightWheelValue;
-	proportionalOffset = Kp * errorTerm;
+	unsigned int threshold = 10; // this is going to be replaced with a more well defined constant later
 	
+	unsigned int backSensorOutput = 0; // this is going to be replaced with the sensor output
+	unsigned int leftSensorOutput = 0; // this is going to be replaced with the sensor output
+	unsigned int rightSensorOutput = 0; // this is going to be replaced with the sensor output
 	
-	
-	//integralTerm = integralTerm + errorTerm * dt;
-	//derivativeTerm = Kd * (errorTerm - previousError) / dt;
-	previousError = errorTerm;
-	outputValue = proportionalOffset;
-	
-	OCR0A = robotSpeed + proportionalOffset; // once we get to integrating integral and derivative, this will be robotSpeed +/- outputValue
-	OCR0B = robotSpeed - proportionalOffset;
-	
-	return outputValue;
+	// are we currently backing up the robot?
+	if (backupCounter > 0) {
+		// is there anything behind us?
+		if (backSensorOutput < threshold) {
+			SetMotorSpeed(50, 50); // back up robot
+		} else {
+			SetMotorSpeed(200, 50); // go right
+			backupCounter--;
+		}
+	} else {
+		// is there anything to the left us us?
+		if (leftSensorOutput < threshold) {
+			SetMotorSpeed(200, 50); // go right
+		} else if (rightSensorOutput < threshold) { // is there anything to the right of us?
+			SetMotorSpeed(50, 200); // go left
+		} else if (backSensorOutput < threshold) { // is there anything behind us?
+			SetMotorSpeed(50, 50); // go backwards
+			backupCounter = 50; // run robot backwards for 50 ticks
+		} else {
+			SetMotorSpeed(200, 200); // go forward
+		}
+	}
 }
