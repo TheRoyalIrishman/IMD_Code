@@ -20,8 +20,8 @@ void DummyLoop(uint16_t);
 void UpdateTWIDisplayState();
 void UpdateValues();
 void ReadButton();
-signed float PID(signed float, signed float);
-void SetMotorSpeed(signed float, signed float);
+uint8_t PID(uint8_t, uint8_t);
+void SetMotorSpeed(signed int, signed int);
 void oscillationCheck(int, int);
 
 //Global variables for display strings
@@ -54,20 +54,22 @@ volatile uint8_t readADCH = 0;
 
 uint8_t direction[2] = "A";
 
-signed float previousError = 0;
-signed float proportionalOffset = 0;
-signed float integralTerm = 0;
-signed float derivativeTerm = 0;
+volatile uint8_t previousError = 0;
+volatile uint8_t proportionalOffset = 0;
+volatile uint8_t integralTerm = 0;
+volatile uint8_t derivativeTerm = 0;
 
-signed float errorTerm = 0;
-signed float outputValue = 0;
+volatile uint8_t errorTerm = 0;
+volatile uint8_t outputValue = 0;
 
-const signed float Kp = 1.0;
-const signed float Ki = 0.0;
-const signed float Kd = 0.0;
-const signed float dt = 1.0;
+const volatile uint8_t Kp = 1.0;
+const volatile uint8_t Ki = 0.0;
+const volatile uint8_t Kd = 0.0;
+const volatile uint8_t dt = 1.0;
 
-const signed float robotSpeed = 2.5;
+volatile uint8_t robotSpeed = 0;
+volatile uint8_t leftMotorSpeed = 0;
+volatile uint8_t rightMotorSpeed = 0;
 
 int main(void)
 {
@@ -121,6 +123,7 @@ int main(void)
 	TCCR0A = (1 << COM0A1) | (0 << COM0A0) | (1 << COM0B1) | (0 << COM0B0) | (1 << WGM01) | (1 << WGM00);//Setup Fast PWM Mode for Channel A
 	TCCR0B = (0 << WGM02) | (0 << CS02) | (1 << CS01) | (0 << CS00); //Define Clock Source Prescaler
 	OCR0A = 1; //Initialized PWM Duty Cycle
+	OCR0B = 1; //
 	
 	//**************************************************************************************
 	//Configure A/D
@@ -139,7 +142,7 @@ int main(void)
 
     while (1) 
     {
-		ReadButton();
+		//ReadButton();
 		UpdateValues();
     }
 }
@@ -163,7 +166,7 @@ void ReadButton(){
 	}
 }
 
-signed float PID(signed float leftWheelValue, signed float rightWheelValue) {
+uint8_t PID(uint8_t leftWheelValue, uint8_t rightWheelValue) {
 	/*if (integrationTimeChecker >= 20) { // >= 20 is equal to 2 seconds
 		integrationTimeChecker = 0; // will stop the oscillation error
 		integralTerm = 0;
@@ -179,13 +182,15 @@ signed float PID(signed float leftWheelValue, signed float rightWheelValue) {
 	previousError = errorTerm;
 	outputValue = proportionalOffset;
 	
-	OCR0A = robotSpeed + proportionalOffset; // once we get to integrating integral and derivative, this will be robotSpeed +/- outputValue
-	OCR0B = robotSpeed - proportionalOffset;
+	leftMotorSpeed = robotSpeed + proportionalOffset; // once we get to integrating integral and derivative, this will be robotSpeed +/- outputValue
+	rightMotorSpeed = robotSpeed - proportionalOffset;
+	
+	SetMotorSpeed(leftMotorSpeed, rightMotorSpeed);
 	
 	return outputValue;
 }
 
-void SetMotorSpeed(signed float leftMotorSpeed, signed float rightMotorSpeed) {
+void SetMotorSpeed(signed int leftMotorSpeed, signed int rightMotorSpeed) {
 	OCR0A = leftMotorSpeed;
 	OCR0B = rightMotorSpeed;
 }
