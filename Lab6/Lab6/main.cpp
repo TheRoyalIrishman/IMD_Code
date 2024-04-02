@@ -177,7 +177,7 @@ uint8_t PID(uint8_t leftWheelValue, uint8_t rightWheelValue) {
 	
 	
 	
-	//integralTerm = integralTerm + errorTerm * dt;
+	//integralTerm = Ki * (integralTerm + errorTerm * dt);
 	//derivativeTerm = Kd * (errorTerm - previousError) / dt;
 	previousError = errorTerm;
 	outputValue = proportionalOffset;
