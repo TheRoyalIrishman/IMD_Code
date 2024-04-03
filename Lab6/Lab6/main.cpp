@@ -20,9 +20,10 @@ void DummyLoop(uint16_t);
 void UpdateTWIDisplayState();
 void UpdateValues();
 void ReadButton();
-uint8_t PID(uint8_t, uint8_t);
-void SetMotorSpeed(signed int, signed int);
+int8_t PID(int8_t, int8_t);
+//void SetMotorSpeed(uint8_t, uint8_t);
 void oscillationCheck(int, int);
+void motorUpdate(int8_t, int8_t);
 
 //Global variables for display strings
 volatile uint8_t FirstLineStr[21] =  "S1:XXXX             ";
@@ -54,22 +55,25 @@ volatile uint8_t readADCH = 0;
 
 uint8_t direction[2] = "A";
 
-volatile uint8_t previousError = 0;
-volatile uint8_t proportionalOffset = 0;
-volatile uint8_t integralTerm = 0;
-volatile uint8_t derivativeTerm = 0;
+volatile int8_t previousError = 0;
+volatile int8_t proportionalOffset = 0;
+volatile int8_t integralOffset = 0;
+volatile int8_t derivativeOffset = 0;
+volatile int8_t totalOffset = 0;
 
-volatile uint8_t errorTerm = 0;
-volatile uint8_t outputValue = 0;
+volatile int8_t errorTerm = 0;
+volatile int8_t outputValue = 0;
 
-const volatile uint8_t Kp = 1.0;
-const volatile uint8_t Ki = 0.0;
-const volatile uint8_t Kd = 0.0;
-const volatile uint8_t dt = 1.0;
+const volatile int8_t Kp = 1.0;
+const volatile int8_t Ki = 0.0;
+const volatile int8_t Kd = 0.0;
+const volatile int8_t dt = 1.0;
 
-volatile uint8_t robotSpeed = 0;
-volatile uint8_t leftMotorSpeed = 0;
-volatile uint8_t rightMotorSpeed = 0;
+volatile int8_t robotSpeed = 30;
+volatile int8_t lMotorSpeed = 0;
+volatile int8_t rMotorSpeed = 0;
+volatile int8_t left = 0;
+volatile int8_t right = 1;
 
 int main(void)
 {
@@ -144,55 +148,41 @@ int main(void)
     {
 		//ReadButton();
 		UpdateValues();
+		motorUpdate(left, robotSpeed);
     }
 }
 
-void ReadButton(){
-	if(PINB & 0b00001000){
-		PORTD = (PORTD | (1<<PORTD0)) & ~(1<<PORTD1);
-		direction[0] = 0b00110000 | 0; //Clockwise		
-		ButtonPressed[0] = OFF[0];
-		ButtonPressed[1] = OFF[1];
-		ButtonPressed[2] = OFF[2];
-	}
-	else {
-		PORTD = (PORTD & ~(1<<PORTD0)) | (1<<PORTD1);
-		direction[0] = 0b00110000 | 1; //Counterclockwise
-		ButtonPressed[0] = ON[0];
-		ButtonPressed[1] = ON[1];
-		ButtonPressed[2] = ON[2];
-		//OC0A PD6
-		//OC0B PD7
-	}
-}
-
-uint8_t PID(uint8_t leftWheelValue, uint8_t rightWheelValue) {
+// set point = left
+// measured value = right
+int8_t PID(int8_t setPoint = 0, int8_t measuredValue = 0) {
 	/*if (integrationTimeChecker >= 20) { // >= 20 is equal to 2 seconds
 		integrationTimeChecker = 0; // will stop the oscillation error
 		integralTerm = 0;
 	}*/
 	
-	errorTerm = leftWheelValue - rightWheelValue;
+	errorTerm = setPoint - measuredValue;
 	proportionalOffset = Kp * errorTerm;
-	
-	
-	
-	//integralTerm = Ki * (integralTerm + errorTerm * dt);
-	//derivativeTerm = Kd * (errorTerm - previousError) / dt;
+	integralOffset = Ki * (integralOffset + (errorTerm * dt));
+	derivativeOffset = Kd * (errorTerm - previousError) / dt;
+	totalOffset = proportionalOffset + integralOffset + derivativeOffset;
 	previousError = errorTerm;
+	
 	outputValue = proportionalOffset;
 	
-	leftMotorSpeed = robotSpeed + proportionalOffset; // once we get to integrating integral and derivative, this will be robotSpeed +/- outputValue
-	rightMotorSpeed = robotSpeed - proportionalOffset;
-	
-	SetMotorSpeed(leftMotorSpeed, rightMotorSpeed);
+	lMotorSpeed = robotSpeed + proportionalOffset; // once we get to integrating integral and derivative, this will be robotSpeed +/- totalOffset
+	rMotorSpeed = robotSpeed - proportionalOffset;
 	
 	return outputValue;
 }
 
-void SetMotorSpeed(signed int leftMotorSpeed, signed int rightMotorSpeed) {
-	OCR0A = leftMotorSpeed;
-	OCR0B = rightMotorSpeed;
+// void SetMotorSpeed(uint8_t leftMotorSpeed, uint8_t rightMotorSpeed) {
+//	OCR0A = leftMotorSpeed;
+//	OCR0B = rightMotorSpeed;
+//}
+
+void motorUpdate(int8_t l_or_r, int8_t robotSpeed) {
+	OCR0A = robotSpeed + PID(l_or_r, adcValueOutputZero);
+	OCR0B = robotSpeed - PID(l_or_r, adcValueOutputOne);
 }
 
 void oscillationCheck(int previousTurnDirection, int currentTurnDirection) {
@@ -205,7 +195,7 @@ void oscillationCheck(int previousTurnDirection, int currentTurnDirection) {
 	if ((previousTurnDirection | currentTurnDirection) & 0x03) {
 		// increment number of oscillations
 		oscillationCounter++;
-	} else {
+		} else {
 		// reset number of oscillations
 		oscillationCounter = 0;
 	}
@@ -228,13 +218,32 @@ void UpdateValues()
 	SecondLineStr[5] = 0b00110000 | ((2*(OCR0A % 25) / 5) % 10);
 	SecondLineStr[10] = direction[0];
 	//Debug by showing OCR0A value
-	SecondLineStr[12] = 0b00110000 | (OCR0A / 100); 
+	SecondLineStr[12] = 0b00110000 | (OCR0A / 100);
 	SecondLineStr[13] = 0b00110000 | ((OCR0A / 10) % 10);
 	SecondLineStr[14] = 0b00110000 | (OCR0A % 10);
 	
 	ThirdLineStr[8] = ButtonPressed[0];
 	ThirdLineStr[9] = ButtonPressed[1];
 	ThirdLineStr[10] = ButtonPressed[2];
+}
+
+void ReadButton(){
+	if(PINB & 0b00001000){
+		PORTD = (PORTD | (1<<PORTD0)) & ~(1<<PORTD1);
+		direction[0] = 0b00110000 | 0; //Clockwise
+		ButtonPressed[0] = OFF[0];
+		ButtonPressed[1] = OFF[1];
+		ButtonPressed[2] = OFF[2];
+	}
+	else {
+		PORTD = (PORTD & ~(1<<PORTD0)) | (1<<PORTD1);
+		direction[0] = 0b00110000 | 1; //Counterclockwise
+		ButtonPressed[0] = ON[0];
+		ButtonPressed[1] = ON[1];
+		ButtonPressed[2] = ON[2];
+		//OC0A PD6
+		//OC0B PD7
+	}
 }
 
 /************************************************************************/
@@ -502,26 +511,27 @@ ISR (ADC_vect) { //Sample every 0.1s
 	
 	// checks if last bit in ADMUX is set - go into MUX 0
 	//---------------------------------  MUX 0  ---------------------------------//
-	if (1){//(ADMUX & 0b00001111) == 0) {
+	if ((ADMUX & 0b00001111) == 0){
 		adcValueOutputZero = readADCH;
-		adcValueOutputZero = (adcValueOutputZero << 2) | (readADCL >> 6);
-		OCR0A = readADCH; //Load A/D High Register in OCR0A to set PWM Duty Cycle
+		
+		//adcValueOutputZero = (adcValueOutputZero << 2) | (readADCL >> 6);
+		//OCR0A = readADCH; //Load A/D High Register in OCR0A to set PWM Duty Cycle
 		//OCR0A += 5; //used for lab5A to slowly increment OCR0A
-		//ADMUX = ((ADMUX & 0b11110000) | 0b00000001);          //Sets to MUX1 //Maybe, cleaner
+		ADMUX = ((ADMUX & 0b11110000) | 0b00000001);          //Sets to MUX1 //Maybe, cleaner
 		//ADMUX = ADMUX | ((ADMUX & 0b11110000) | 0b00000000)  //Maybe too repetitive
 		//ADMUX = ADMUX | (1 << MUX0);                       // switch sensor reading, true previous way
 		PORTB ^= 0x04;//Toggle Pin PB2
 	}
 	//---------------------------------  MUX 1  ---------------------------------//
-	/*else if ((ADMUX & 0b00001111) == 1) {
+	else if ((ADMUX & 0b00001111) == 1) {
 		adcValueOutputOne = readADCH;
 		adcValueOutputOne = (adcValueOutputOne << 2) | (readADCL >> 6);
 		//OCR0B = readADCH;
-		ADMUX = ((ADMUX & 0b11110000) | 0b00000010);          //Sets to MUX2
+		//ADMUX = ((ADMUX & 0b11110000) | 0b00000010);          //Sets to MUX2
 		//ADMUX = ADMUX & 0b11111110; // switch sensor reading, true previous way
 	}
 	//---------------------------------  MUX 2  ---------------------------------//
-	else if ((ADMUX & 0b00001111) == 2) {
+	/*else if ((ADMUX & 0b00001111) == 2) {
 		adcValueOutputTwo = readADCH;
 		adcValueOutputTwo = (adcValueOutputTwo << 2) | (readADCL >> 6);
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000011);          //Sets to MUX3
@@ -569,7 +579,7 @@ ISR(TIMER1_COMPA_vect)
 	ADCSRA |= (1 << ADSC); //Start Conversion
 }
 
-ISR(TIMER1_OVF_vect) {
+/*ISR(TIMER1_OVF_vect) {
 	unsigned int backupCounter = 0;
 	
 	unsigned int threshold = 10; // this is going to be replaced with a more well defined constant later
@@ -577,6 +587,7 @@ ISR(TIMER1_OVF_vect) {
 	unsigned int backSensorOutput = 0; // this is going to be replaced with the sensor output
 	unsigned int leftSensorOutput = 0; // this is going to be replaced with the sensor output
 	unsigned int rightSensorOutput = 0; // this is going to be replaced with the sensor output
+	
 	
 	// are we currently backing up the robot?
 	if (backupCounter > 0) {
@@ -600,4 +611,4 @@ ISR(TIMER1_OVF_vect) {
 			SetMotorSpeed(200, 200); // go forward
 		}
 	}
-}
+}*/
