@@ -34,7 +34,7 @@ void motorUpdate(int8_t, int8_t);
 //Global variables for display strings
 volatile uint8_t FirstLineStr[21] =  "S1:XXXX             ";
 volatile uint8_t SecondLineStr[21] = "M1:XXX D1:X         ";
-volatile uint8_t ThirdLineStr[21] =  "Button: XXX         ";
+volatile uint8_t ThirdLineStr[21] =  "M Adju: XXX         ";
 volatile uint8_t FourthLineStr[21] = "                    ";
 
 //Global variables for TWI state and data
@@ -70,12 +70,12 @@ volatile int8_t totalOffset = 0;
 volatile int8_t errorTerm = 0;
 volatile int8_t outputValue = 0;
 
-const volatile int8_t Kp = 1.0;
-const volatile int8_t Ki = 0.0;
-const volatile int8_t Kd = 0.0;
-const volatile int8_t dt = 1.0;
+const volatile int8_t Kp = 1;
+const volatile int8_t Ki = 0;
+const volatile int8_t Kd = 0;
+const volatile int8_t dt = 1;
 
-volatile int8_t robotSpeed = 80;
+volatile uint8_t robotSpeed = 90;
 volatile int8_t lMotorSpeed = 0;
 volatile int8_t rMotorSpeed = 0;
 volatile int8_t left = 0;
@@ -86,9 +86,11 @@ int main(void)
 {
     //Configure I/O
     //Set SDA (PC4) and SCL (PC5) as outputs for TWI bus
-    DDRC = (1<<PORTC0)|(1<<PORTC1)|(1<<PORTC2)|(1<<PORTC3)|(1<<PORTC5)|(1<<PORTC4);
-    DDRD = (1<<PORTD0)|(0<<PORTD1)|(0<<PORTD2)|(0<<PORTD3)|(1<<PORTD4)|(1<<PORTD5)|(1<<PORTD6)|(1<<PORTD7);
+    DDRC = (0<<PORTC0)|(1<<PORTC1)|(1<<PORTC2)|(1<<PORTC3)|(1<<PORTC5)|(1<<PORTC4);
+    DDRD = (1<<PORTD0)|(1<<PORTD1)|(1<<PORTD2)|(1<<PORTD3)|(1<<PORTD4)|(1<<PORTD5)|(1<<PORTD6)|(1<<PORTD7);
 	DDRB = (1<<PORTB0)|(1<<PORTB1)|(1<<PORTB2)|(1<<PORTB3);
+	
+	PORTC = ((PORTC & 0b11110001) | 0); //Resets MUX select
 
 	
     //Configure Timer 1 to generate an ISR every 100ms
@@ -150,14 +152,15 @@ int main(void)
 	UpdateTWIDisplayState();//Run state machine
 	
     sei();
-
+	//PORTB = ((PORTB & 0b11110000) | 0b00001010); // 
+	PORTD = ((PORTD & 0b11110000) | 0b00001001); // forwards
     while (1) 
     {
 		UpdateValues();
-		//SetMotorSpeed();
-		PORTB = ((PORTB & 0b11110000) | 0b00000101);
-		OCR0A = 80;
-		OCR0B = 80;
+		SetMotorSpeed();
+		//PORTB = ((PORTB & 0b11110000) | 0b00001010); // 
+		//OCR0A = 0;//robotSpeed;
+		//OCR0B = 0;//robotSpeed;
     }
 }
 
@@ -169,10 +172,10 @@ int8_t PID(int8_t setPoint, int8_t measuredValue) {
 		integralTerm = 0;
 	}*/
 	
-	errorTerm = setPoint - measuredValue;
+	errorTerm = (setPoint - measuredValue);
 	proportionalOffset = Kp * errorTerm;
-	integralOffset = Ki * (integralOffset + (errorTerm * dt));
-	derivativeOffset = Kd * (errorTerm - previousError) / dt;
+	//integralOffset = Ki * (integralOffset + (errorTerm * dt));
+	//derivativeOffset = Kd * (errorTerm - previousError) / dt;
 	totalOffset = proportionalOffset + integralOffset + derivativeOffset;
 	previousError = errorTerm;
 	
@@ -223,6 +226,10 @@ void UpdateValues()
 	FirstLineStr[4] = 0b00110000 | ((adc0_LeftIR / 100) % 10);
 	FirstLineStr[5] = 0b00110000 | ((adc0_LeftIR / 10) % 10);
 	FirstLineStr[6] = 0b00110000 | (adc0_LeftIR % 10);
+	FirstLineStr[8] = 0b00110000 | (adc2_RightIR / 1000);
+	FirstLineStr[9] = 0b00110000 | ((adc2_RightIR / 100) % 10);
+	FirstLineStr[10] = 0b00110000 | ((adc2_RightIR / 10) % 10);
+	FirstLineStr[11] = 0b00110000 | (adc2_RightIR % 10);	
 	
 	//Display duty cycle in terms of percentage
 	SecondLineStr[3] = 0b00110000 | (OCR0A / 255);
@@ -234,9 +241,9 @@ void UpdateValues()
 	SecondLineStr[13] = 0b00110000 | ((OCR0A / 10) % 10);
 	SecondLineStr[14] = 0b00110000 | (OCR0A % 10);
 	
-	ThirdLineStr[8] = ButtonPressed[0];
-	ThirdLineStr[9] = ButtonPressed[1];
-	ThirdLineStr[10] = ButtonPressed[2];
+	ThirdLineStr[8] = 0b00110000 | (motorAdjust / 100);
+	ThirdLineStr[9] = 0b00110000 | ((motorAdjust / 10)%10);
+	ThirdLineStr[10] = 0b00110000 | (motorAdjust % 10);
 }
 
 void ReadButton(){
@@ -559,6 +566,7 @@ ISR (ADC_vect) { //Sample every 0.1s	//Functionality for 8 bit and 10 bit have b
 	}
 	else{
 		ADMUX = ((ADMUX & 0b11110000) | 0b00000000); //ensures MUX is 0 because we are using an external MUX controlled by PORTC
+		PORTC = ((PORTC & 0b11110001) | 0); //Resets MUX select
 		//PIND = PIND | (1<<PIND5); //Put LED on here to check error
 	}
 }
